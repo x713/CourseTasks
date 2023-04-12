@@ -19,7 +19,7 @@ PQueue* create_pqueue(fp_cmp_data cmp_f, fp_delete_data delete_data_f)
 
 void delete_pqueue(PQueue** pqueue)
 {
-  if (*pqueue != NULL)
+  if ((*pqueue) != NULL)
   {
     if ((*pqueue)->begin != NULL)
     {
@@ -68,8 +68,7 @@ void push_pqueue(PQueue* pqueue, void* data)
   if (pqueue == NULL)
     return;
 
-  if (
-    pqueue->compare_less == NULL)
+  if (pqueue->compare_less == NULL)
     return;
 
   ListNode* node = (ListNode*)malloc(sizeof(ListNode));

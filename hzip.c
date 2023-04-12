@@ -1,8 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <cstring>
+//#include <cstring>
 
-#include "pqueue.c"
+#include "pqueue.h"
 
 void     print_help()
 {
@@ -18,14 +18,13 @@ void     print_help()
 // V2
 
 // STRUCTURES
-struct CharFreqNode {
-  unsigned long freq = 0;
-  unsigned char ch = 0;
-  CharFreqNode* left_node = NULL;
-  CharFreqNode* right_node = NULL;
+struct CharFreqNode_t {
+  unsigned long freq;
+  unsigned char ch;
+  struct CharFreqNode_t* left_node;
+  struct CharFreqNode_t* right_node;
 };
-
-
+typedef struct CharFreqNode_t CharFreqNode;
 
 void print_charfreq_queue(PQueue* pqueue)
 {
@@ -120,7 +119,7 @@ void test_prio_queue()
 
 
 
-int get_tree_depth(CharFreqNode* root, int counter = 0)
+int get_tree_depth(CharFreqNode* root, int counter)
 {
   int max_deep = 0;
 
@@ -138,7 +137,7 @@ int get_tree_depth(CharFreqNode* root, int counter = 0)
 }
 
 
-void print_tree_line(CharFreqNode* root, int deep = 0, int counter = 0, int max_deep = 0)
+void print_tree_line(CharFreqNode* root, int deep , int counter , int max_deep )
 {
   if (root != NULL)
   {
@@ -157,7 +156,7 @@ void print_tree_line(CharFreqNode* root, int deep = 0, int counter = 0, int max_
       {
         printf("S: %d%c", root->freq, root->ch);
       }
-      for (int i = 0; i < (max_deep-deep); ++i)
+      for (int i = 0; i < (max_deep - deep); ++i)
         printf("   ");
     }
   }
@@ -169,7 +168,7 @@ void print_tree_line(CharFreqNode* root, int deep = 0, int counter = 0, int max_
 void print_tree(CharFreqNode* root)
 {
 
-  int d = get_tree_depth(root);
+  int d = get_tree_depth(root, 0);
 
   for (int i = 0; i <= d; ++i)
   {
@@ -180,15 +179,15 @@ void print_tree(CharFreqNode* root)
   }
 }
 
-void delete_Huffman_tree(CharFreqNode*& root)
+void delete_Huffman_tree(CharFreqNode** root)
 {
-  if (root == NULL)
+  if (*root == NULL)
     return;
 
-  delete_Huffman_tree(root->left_node);
-  delete_Huffman_tree(root->right_node);
+  delete_Huffman_tree(&((*root)->left_node));
+  delete_Huffman_tree(&((*root)->right_node));
 
-  free(root);
+  free(*root);
   root = NULL;
 }
 
@@ -220,6 +219,17 @@ void test_create_Huffman()
     if (alph[i].freq > 0)
     {
       CharFreqNode* node = (CharFreqNode*)malloc(sizeof(CharFreqNode));
+      if (node == NULL)
+      {
+        while (!is_empty(queue))
+        {
+          CharFreqNode* data = (CharFreqNode*)pop_pqueue(queue);
+          if (data != NULL)
+            free(data);
+        }
+        return;
+      }
+
       node->ch = alph[i].ch;
       node->freq = alph[i].freq;
       node->left_node = NULL;
@@ -237,25 +247,124 @@ void test_create_Huffman()
   if (root == NULL)
     return; // FAULT!!
 
-  printf("Tree depth: %d\n\n", get_tree_depth(root));
+  printf("Tree depth: %d\n\n", get_tree_depth(root, 0));
   print_tree(root);
 
-  delete_Huffman_tree(root);
+  // create_codes();
+
+  delete_Huffman_tree(&root);
 
   delete_pqueue(&queue);
 };
 
+#define BUFFER_MAX 256
+#define BUFFER_BITS_MAX 256*8
+unsigned int count = 0;
+unsigned char _bit_buffer[BUFFER_MAX];
+
+void reset_bit_buffer()
+{
+  count = 0;
+  for (int i = 0; i < BUFFER_MAX; ++i)
+    _bit_buffer[i] = 0;
+}
+
+bool add_bit_buffer(unsigned char bit)
+{
+  if (count >= BUFFER_BITS_MAX)
+    return false;
+
+  unsigned int segment = count / 8;
+  unsigned int offset = count % 8;
+
+  if(bit)
+    _bit_buffer[segment] = _bit_buffer[segment] | (unsigned char)(0x01 << offset);
+  else
+    _bit_buffer[segment] = _bit_buffer[segment] & ~((unsigned char)(0x01 << offset));
+
+  ++count;
+
+  return true;
+}
+
+bool is_empty_bit_buffer()
+{
+  return count > 0;
+}
+
+unsigned char pop_bit_buffer()
+{
+  unsigned int segment = count / 8;
+  unsigned int offset = count % 8;
+
+  count--;
+
+  return _bit_buffer[segment] & (0x01 << offset);
+
+}
+
+void print_bit_buffer()
+{
+  for (unsigned int i = 0; i < count; ++i)
+  {
+    unsigned int segment = i / 8;
+    unsigned int offset = i % 8;
+
+    printf("%d", _bit_buffer[segment] & (unsigned char)(0x01 << offset) ? 1 : 0);
+  }
+  printf("\n");
+}
 
 void test_packaging()
 {
+  reset_bit_buffer();
 
-
+  int i = 0;
+  while (i++ < 10)
+  {
+    add_bit_buffer(0);
+    add_bit_buffer(1);
+    add_bit_buffer(1);
+  }
+  print_bit_buffer();
 }
+
+bool is_little_endian()
+{
+  int num = 1;
+
+  return (*(char*)&num == 1) ? true : false;
+}
+
+// | HFA | version |
+// | ALPH_MAX | PAGES_MAX | LAST_PAGE_OFFSET| 
+// | ch | nodes | ... | ch | nodes |
+// | page | .. | page |
+
+
+// nodes 
+// 0 - no nodes
+// 1 - left leaf
+// 2 - right leaf
+// 3 - both leaves
+
+struct HFA_Header_t
+{
+  const char* head;// = "HFA";
+  const char* ver; // = "1.0";
+  unsigned char alph_max;
+  unsigned long pages_max;
+  unsigned char page_offset;
+};
+typedef struct HFA_Header_t HFA_Header;
+
 
 int main(int argc, char* argv[])
 {
   //test_prio_queue();
   test_create_Huffman();
+  //test_packaging();
+
 
   return 0;
 }
