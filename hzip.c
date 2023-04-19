@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
-//#include <cstring>
 
 #include "pqueue.h"
+#include "bitbuffer.h"
 
-void     print_help()
+void print_help()
 {
   printf("Compressing file with Huffman codes\n");
   printf("Using:\n");
@@ -88,29 +88,20 @@ void test_prio_queue()
 
   pr;
 
-  CharFreqNode a, b, c, d, e, f, g;
-  a.freq = 7;
-  b.freq = 5;
-  c.freq = 6;
-  d.freq = 3;
-  e.freq = 1;
-  f.freq = 11;
-  g.freq = 4;
-
-  push_pqueue(queue, &a);
-  pr;
-  push_pqueue(queue, &b);
-  pr;
-  push_pqueue(queue, &c);
-  pr;
-  push_pqueue(queue, &d);
-  pr;
-  push_pqueue(queue, &e);
-  pr;
-  push_pqueue(queue, &f);
-  pr;
-  push_pqueue(queue, &g);
-  pr;
+  CharFreqNode a[7];
+  a[0].freq = 7;
+  a[1].freq = 5;
+  a[2].freq = 6;
+  a[3].freq = 3;
+  a[4].freq = 1;
+  a[5].freq = 11;
+  a[6].freq = 4;
+  for (int i = 0; i < 7; ++i)
+  {
+    a[i].ch = 'A' + i;
+    push_pqueue(queue, &a[i]);
+    pr;
+  }
 
   delete_pqueue(&queue);
   pr;
@@ -137,7 +128,7 @@ int get_tree_depth(CharFreqNode* root, int counter)
 }
 
 
-void print_tree_line(CharFreqNode* root, int deep , int counter , int max_deep )
+void print_tree_line(CharFreqNode* root, int deep, int counter, int max_deep)
 {
   if (root != NULL)
   {
@@ -257,77 +248,6 @@ void test_create_Huffman()
   delete_pqueue(&queue);
 };
 
-#define BUFFER_MAX 256
-#define BUFFER_BITS_MAX 256*8
-unsigned int count = 0;
-unsigned char _bit_buffer[BUFFER_MAX];
-
-void reset_bit_buffer()
-{
-  count = 0;
-  for (int i = 0; i < BUFFER_MAX; ++i)
-    _bit_buffer[i] = 0;
-}
-
-bool add_bit_buffer(unsigned char bit)
-{
-  if (count >= BUFFER_BITS_MAX)
-    return false;
-
-  unsigned int segment = count / 8;
-  unsigned int offset = count % 8;
-
-  if(bit)
-    _bit_buffer[segment] = _bit_buffer[segment] | (unsigned char)(0x01 << offset);
-  else
-    _bit_buffer[segment] = _bit_buffer[segment] & ~((unsigned char)(0x01 << offset));
-
-  ++count;
-
-  return true;
-}
-
-bool is_empty_bit_buffer()
-{
-  return count > 0;
-}
-
-unsigned char pop_bit_buffer()
-{
-  unsigned int segment = count / 8;
-  unsigned int offset = count % 8;
-
-  count--;
-
-  return _bit_buffer[segment] & (0x01 << offset);
-
-}
-
-void print_bit_buffer()
-{
-  for (unsigned int i = 0; i < count; ++i)
-  {
-    unsigned int segment = i / 8;
-    unsigned int offset = i % 8;
-
-    printf("%d", _bit_buffer[segment] & (unsigned char)(0x01 << offset) ? 1 : 0);
-  }
-  printf("\n");
-}
-
-void test_packaging()
-{
-  reset_bit_buffer();
-
-  int i = 0;
-  while (i++ < 10)
-  {
-    add_bit_buffer(0);
-    add_bit_buffer(1);
-    add_bit_buffer(1);
-  }
-  print_bit_buffer();
-}
 
 bool is_little_endian()
 {
@@ -337,16 +257,23 @@ bool is_little_endian()
 }
 
 // | HFA | version |
-// | ALPH_MAX | PAGES_MAX | LAST_PAGE_OFFSET| 
-// | ch | nodes | ... | ch | nodes |
+// | PAGES_MAX | LAST_PAGE_OFFSET| 
+// | nodes_bits | ch | .. | ch |
 // | page | .. | page |
 
+// nodes - (packed in 2 bits)
+// 00 - no nodes
+// 10 - left leaf
+// 01 - right leaf
+// 11 - both leaves
 
-// nodes 
-// 0 - no nodes
-// 1 - left leaf
-// 2 - right leaf
-// 3 - both leaves
+
+  // filename
+  // read/verify header/ 'clean' exit
+  // header - wide/short storage
+  // read tree 
+  // decode pages
+
 
 struct HFA_Header_t
 {
@@ -361,10 +288,24 @@ typedef struct HFA_Header_t HFA_Header;
 
 int main(int argc, char* argv[])
 {
-  //test_prio_queue();
+  test_prio_queue();
   test_create_Huffman();
-  //test_packaging();
+  test_packaging();
 
+  //test_serialize_Huffman();
+  //test_deserialize_Huffman();
+
+  //test_slicing
+
+
+  /*
+  * Read args
+  * encode / decode
+  *
+  * encode - read file, create Huffman, write_n_code
+  * decode - read file header, read Huffman, write_n_decode
+  * buff_max - ? (perf testing / size_t?)
+  */
 
   return 0;
 }

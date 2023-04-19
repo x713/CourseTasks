@@ -1,5 +1,4 @@
 #pragma once
-//#include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 
@@ -27,11 +26,8 @@ typedef struct
 } PQueue;
 
 
-PQueue* create_pqueue(fp_cmp_data cmp_f, fp_delete_data delete_data_f);
+PQueue* create_pqueue(fp_cmp_data, fp_delete_data);
 void delete_pqueue(PQueue** pqueue);
 bool is_empty(PQueue* pqueue);
 void push_pqueue(PQueue* pqueue, void* data);
 void* pop_pqueue(PQueue* pqueue);
-
-
-

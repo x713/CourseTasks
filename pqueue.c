@@ -129,4 +129,3 @@ bool is_empty(PQueue* pqueue)
   return (pqueue == NULL) || (pqueue->begin == NULL);
 }
 
-
