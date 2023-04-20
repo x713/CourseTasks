@@ -1,8 +1,9 @@
-#pragma once
+#ifndef BIT_BUFFER_CLASS
+#define BIT_BUFFER_CLASS
 #include <stdbool.h>
 
 #define BIT_BUFFER_MAX 256
-#define BIT_BUFFER_WIDTH 256*8
+#define BIT_BUFFER_WIDTH BIT_BUFFER_MAX*8
 
 #define BIT_BUFFER_CODES_OK 8
 #define BIT_BUFFER_CODES_NULL_BUFFER 9
@@ -26,15 +27,21 @@ void reset_bit_buffer(BitBuffer*);
 bool add_bit_buffer(BitBuffer*, const unsigned char);
 
 bool is_empty_bit_buffer(BitBuffer*);
+bool is_buffer_full(BitBuffer* buf);
 
 unsigned char pop_bit_buffer(BitBuffer*);
+unsigned char get_bit_buffer(BitBuffer* buf, unsigned int pos);
+
+void copy_buffer(BitBuffer* src, BitBuffer* dest);
+void add_buffer_slice(BitBuffer* src, BitBuffer* dest, BitBuffer* src_slice);
 
 void print_bit_buffer(BitBuffer*);
 
+bool is_little_endian();
+unsigned int toggle_endian(unsigned int num);
+
 // TEST
 void test_packaging();
+void test_packaging2();
 
-// bool is_8bits_free_bit_buffer(BitBuffer*); // can add 8 bits
-//unsigned int add_byte_buffer(BitBuffer*, unsigned char);
-//unsigned int add_byte_slice(BitBuffer*, unsigned char data, unsigned char slice); // byte data, byte slice from [0-slice]
-
+#endif // !BIT_BUFFER_CLASS

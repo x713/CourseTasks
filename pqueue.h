@@ -1,5 +1,5 @@
-#pragma once
-#include <stdlib.h>
+#ifndef PQUEUE_CLASS
+#define PQUEUE_CLASS
 #include <stdbool.h>
 
 
@@ -31,3 +31,5 @@ void delete_pqueue(PQueue** pqueue);
 bool is_empty(PQueue* pqueue);
 void push_pqueue(PQueue* pqueue, void* data);
 void* pop_pqueue(PQueue* pqueue);
+
+#endif // !PQUEUE_CLASS

@@ -9,6 +9,7 @@
 *.user
 *.userosscache
 *.sln.docstates
+*.sln
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
@@ -363,3 +364,10 @@ MigrationBackup/
 FodyWeavers.xsd
 /CourseTasks.vcxproj
 /CourseTasks.vcxproj.filters
+/.gitignore
+/.gitignore
+/decode.x7
+/.gitignore
+/.gitignore
+/.gitignore
+/.gitignore

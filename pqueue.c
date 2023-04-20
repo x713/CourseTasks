@@ -1,5 +1,8 @@
 #include "pqueue.h"
 
+#include <stdlib.h>
+
+
 PQueue* create_pqueue(fp_cmp_data cmp_f, fp_delete_data delete_data_f)
 {
   if (cmp_f == NULL)
@@ -128,4 +131,3 @@ bool is_empty(PQueue* pqueue)
 {
   return (pqueue == NULL) || (pqueue->begin == NULL);
 }
-
