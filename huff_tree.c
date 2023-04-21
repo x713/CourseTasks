@@ -1,6 +1,9 @@
 #include "huff_tree.h"
 #include "stdio.h"
 
+// Print debug output
+// #define _DEBUG_PRN
+
 void print_charfreq_queue(PQueue* pqueue)
 {
   if (is_empty(pqueue))
@@ -130,12 +133,14 @@ void print_tree_line(CharFreqNode* root, int deep, int counter, int max_deep)
       if (root->left_node != NULL && root->right_node != NULL)
       {
         //printf("N: %d", root->freq);
-        printf("N:   ");
+        printf("N:      ");
       }
       else
       {
         //printf("S: %d%c", root->freq, root->ch);
-        printf("S: %c  ", root->ch);
+        unsigned char fmt = root->ch;
+        fmt = ((fmt > ' ' && fmt < '~') ? fmt : '*');
+        printf("S: %c  ", fmt);
       }
       for (int i = 0; i < (max_deep - deep); ++i)
         printf("   ");
@@ -151,7 +156,7 @@ void print_tree(CharFreqNode* root)
   for (int i = 0; i <= d; ++i)
   {
     for (int j = 0; j < (d - i); ++j)
-      printf("   ");
+      printf("      ");
     print_tree_line(root, i, 0, d);
     printf("\n");
   }
@@ -256,20 +261,30 @@ void prepare_tree_codes(CharFreqNode* root, BitBuffer** codes, BitBuffer* ongoin
 
   if (root->left_node == NULL && root->right_node == NULL)
   {
+
+#ifdef _DEBUG_PRN
+    printf("////////prepare codes//////\n");
+    printf("char: '%c' code\n", root->ch);
+    print_bit_buffer(ongoing_code);
+#endif
+
     copy_buffer(ongoing_code, codes[root->ch]);
     pop_bit_buffer(ongoing_code);
+    return;
   }
+
   if (root->left_node != NULL)
   {
     add_bit_buffer(ongoing_code, 0);
     prepare_tree_codes(root->left_node, codes, ongoing_code);
   }
+
   if (root->right_node != NULL)
   {
     add_bit_buffer(ongoing_code, 1);
     prepare_tree_codes(root->right_node, codes, ongoing_code);
   }
-
+  pop_bit_buffer(ongoing_code);
 }
 
 bool cmp_freq(void* d1, void* d2)

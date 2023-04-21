@@ -29,7 +29,7 @@ void reset_bit_buffer(BitBuffer* buf)
 
 bool add_bit_buffer(BitBuffer* buf, unsigned char bit)
 {
-  if (buf->count >= BIT_BUFFER_WIDTH)
+  if (buf->count > BIT_BUFFER_WIDTH)
     return false;
 
   unsigned int segment = buf->count / 8;
@@ -75,8 +75,8 @@ unsigned char get_bit_buffer(BitBuffer* buf, unsigned int pos)
 
 void set_bit_buffer(BitBuffer* buf, unsigned int pos, unsigned char bit)
 {
-  unsigned int segment = buf->count / 8;
-  unsigned int offset = buf->count % 8;
+  unsigned int segment = pos / 8;
+  unsigned int offset = pos % 8;
 
   if (bit)
     buf->bit_buffer[segment] = buf->bit_buffer[segment] | (unsigned char)(0x01 << offset);
@@ -100,17 +100,17 @@ void copy_buffer(BitBuffer* src, BitBuffer* dest)
 
 void add_buffer_slice(BitBuffer* src, BitBuffer* dest, BitBuffer* src_slice)
 {
-  src_slice->count = 0;
   int free_space = BIT_BUFFER_WIDTH - dest->count;
 
   if (free_space > 0)
   {
-    if (free_space - src->count > 0)
+    if (free_space > src->count)
     {
       for (unsigned int i = 0; i < src->count; ++i)
       {
         add_bit_buffer(dest, get_bit_buffer(src, i));
       }
+      src_slice->count = 0;
     }
     else
     {

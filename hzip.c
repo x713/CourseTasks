@@ -1,5 +1,7 @@
 #include <stdio.h>
 
+//#define _DEBUG_PRN
+
 #include "huff_tree.h"
 
 void print_help()
@@ -12,41 +14,53 @@ void print_help()
   printf("     to decompress file\n\n");
 }
 
-
+// Loads Bytes to bit_buffer
 void refresh_buffer(BitBuffer* buf, FILE* fp_in)
 {
   buf->count = fread_s(&buf->bit_buffer, BIT_BUFFER_MAX, 1, BIT_BUFFER_MAX, fp_in);
   buf->count *= 8; // Save bits count
 }
 
+// Main encoding func
+
+// TODO : refactor/ perf
+// more incapsulation and abstraction?
+// eliminate stack involving / inlines
 void decode_buffer(BitBuffer* src, CharFreqNode* node, FILE* fp_in, FILE* fp_out, unsigned int* pos)
 {
-  if (*pos >= BIT_BUFFER_WIDTH)
-  {
-    (*pos) = 0;
-    refresh_buffer(src, fp_in);
-  }
-  if (*pos >= src->count)
+  if (src->count == 0)
     return;
+
   if (node->left_node == NULL && node->right_node == NULL)
   {
     fputc(node->ch, fp_out);
-    printf("Found char: %c\n", node->ch);
+
     gl_filesize--;
+
+#ifdef _DEBUG_PRN
+    printf("Found char: %c\n", node->ch);
+#endif
   }
   else
   {
-    if (gl_filesize == 0)
-      return;
     char bit = get_bit_buffer(src, *pos);
+
+#ifdef _DEBUG_PRN
     printf("Processed bit : %d   Processed pos : %d\n", bit, *pos);
+#endif
+
     (*pos)++;
+
+    if ((*pos) >= BIT_BUFFER_WIDTH)
+    {
+      (*pos) = 0;
+      refresh_buffer(src, fp_in);
+    }
 
     if (node->left_node != NULL && bit == 0)
     {
       decode_buffer(src, node->left_node, fp_in, fp_out, pos);
     }
-    else
     if (node->right_node != NULL && bit == 1)
     {
       decode_buffer(src, node->right_node, fp_in, fp_out, pos);
@@ -77,6 +91,41 @@ void load_int_e(int* i, FILE* fp_in)
     *i = toggle_endian(*i);
   }
 }
+
+void encode(BitBuffer** codes, BitBuffer* tmp, BitBuffer* tmp_slice, FILE* fp_in, FILE* fp_out)
+{
+  long ps = 0;
+  int t = fgetc(fp_in);
+  while (t != EOF)
+  {
+
+    if (codes[t] != NULL)
+    {
+      tmp_slice->count = 0;
+
+      add_buffer_slice(codes[t], tmp, tmp_slice);
+      //printf("%c", t);
+      do
+      {
+        if (is_buffer_full(tmp))
+        {
+          fwrite(&tmp->bit_buffer, 1, BIT_BUFFER_MAX, fp_out);
+          tmp->count = 0;
+        }
+        if (tmp_slice->count > 0)
+        {
+          add_buffer_slice(tmp_slice, tmp, tmp_slice);
+          //tmp_slice->count = 0;
+        }
+
+      } while (tmp_slice->count > 0);
+    }
+    t = fgetc(fp_in);
+    ps++;
+  }
+  printf("Processed: %d\n", ps);
+}
+
 
 void test_archive()
 {
@@ -186,8 +235,8 @@ void test_archive()
         fputc('0', fp_out);
         fputc('1', fp_out);
 
-        unsigned int fs_segment = gl_filesize / 8;
-        unsigned int fs_offset = gl_filesize % 8;
+        unsigned int fs_segment = gl_filesize / 32;
+        unsigned int fs_offset = gl_filesize % 32;
 
         // Write orig FILESIZE
         save_int_e(fs_segment, fp_out);
@@ -203,7 +252,7 @@ void test_archive()
         segment = segment + (offset > 0 ? 1 : 0);
 
         // Write Tree info buffer content to file.
-        fwrite(tree_buff->bit_buffer, 1, segment, fp_out);
+        fwrite(&tree_buff->bit_buffer, 1, segment, fp_out);
 
         // Write alpabet characters
         save_tree_alphabeth(root, fp_out);
@@ -248,36 +297,9 @@ void test_archive()
 
             tmp->count = 0;
 
-            int i = 100;
-            while (i-- > 0)
-            {
-              unsigned char t = fgetc(fp_in);
+            // TODO : Progress bar
 
-              if (t == EOF)
-              {
-                break;
-              }
-
-              if (codes[t] != NULL)
-              {
-                tmp_slice->count = 0;
-
-                add_buffer_slice(codes[t], tmp, tmp_slice);
-                do
-                {
-                  if (is_buffer_full(tmp))
-                  {
-                    fwrite(&tmp->bit_buffer, 1, BIT_BUFFER_MAX, fp_out);
-                    tmp->count = 0;
-                  }
-                  if (tmp_slice->count > 0)
-                  {
-                    add_buffer_slice(tmp_slice, tmp, tmp_slice);
-                  }
-
-                } while (tmp_slice->count > 0);
-              }
-            }
+            encode(codes, tmp, tmp_slice, fp_in, fp_out);
 
             if (!is_empty_bit_buffer(tmp))
             {
@@ -285,6 +307,8 @@ void test_archive()
               fwrite(&tmp->bit_buffer, 1, size_in_bytes, fp_out);
               tmp->count = 0;
             }
+
+            // TODO : add Checksum here
 
             printf("Encoded!\n");
 
@@ -382,7 +406,7 @@ void test_decode()
     load_int_e(&fs_segment, fp_in);
     load_int_e(&fs_offset, fp_in);
 
-    long filesize = fs_segment * 8 + fs_offset;
+    gl_filesize = fs_segment * 32 + fs_offset;
 
     // Read BuffSize
     unsigned int segment;
@@ -427,13 +451,18 @@ void test_decode()
       bool err_flag = false;
       load_tree_node(root, fp_in, &err_flag);
 
+      // MAIN MISSION
+      // START TO DECODE  O_o /* ~-<<< << {{ [ [  :  :  
       if (err_flag)
       {
         printf("Error: EOF while loading tree alphabeth.\n");
       }
       else
       {
+
+#ifdef _DEBUG_PRN
         print_tree(root);
+#endif
         printf("Start decoding\n");
 
         BitBuffer* read_buffer = create_bit_buffer();
@@ -447,7 +476,7 @@ void test_decode()
           {
             unsigned int pos = 0;
             refresh_buffer(read_buffer, fp_in);
-            print_bit_buffer(read_buffer);
+            //print_bit_buffer(read_buffer);
 
             bool procesing = read_buffer->count > 0;
 
@@ -455,7 +484,7 @@ void test_decode()
             {
               decode_buffer(read_buffer, root, fp_in, fp_out, &pos);
 
-              if (pos > read_buffer->count || gl_filesize == 0)
+              if (gl_filesize == 0)
                 procesing = false;
             }
 
@@ -475,7 +504,7 @@ void test_decode()
 
     fclose(fp_in);
   }
-
+  printf("Decoded successfully\n");
 }
 
 
