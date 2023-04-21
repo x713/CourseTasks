@@ -1,18 +1,9 @@
 #include <stdio.h>
+#include <string.h>
 
 //#define _DEBUG_PRN
 
 #include "huff_tree.h"
-
-void print_help()
-{
-  printf("Compressing file with Huffman codes\n");
-  printf("Using:\n");
-  printf("   -c filename\n");
-  printf("     to compress file\n");
-  printf("   -d filename\n");
-  printf("     to decompress file\n\n");
-}
 
 // Loads Bytes to bit_buffer
 void refresh_buffer(BitBuffer* buf, FILE* fp_in)
@@ -115,7 +106,6 @@ void encode(BitBuffer** codes, BitBuffer* tmp, BitBuffer* tmp_slice, FILE* fp_in
         if (tmp_slice->count > 0)
         {
           add_buffer_slice(tmp_slice, tmp, tmp_slice);
-          //tmp_slice->count = 0;
         }
 
       } while (tmp_slice->count > 0);
@@ -123,15 +113,15 @@ void encode(BitBuffer** codes, BitBuffer* tmp, BitBuffer* tmp_slice, FILE* fp_in
     t = fgetc(fp_in);
     ps++;
   }
-  printf("Processed: %d\n", ps);
+  printf("\nProcessed: %d bytes\n", ps);
 }
 
 
-void test_archive()
+void make_archive(char* filename_in, char* filename_out)
 {
   FILE* fp_in;
 
-  fopen_s(&fp_in, "D:\\in.x7", "rb");
+  fopen_s(&fp_in, filename_in, "rb");
 
   if (!fp_in)
   {
@@ -206,8 +196,8 @@ void test_archive()
     if (root == NULL)
       return; // FAULT!!
 
-    printf("Tree depth: %d\n\n", get_tree_depth(root, 0));
-    print_tree(root);
+    printf("Huffman Tree depth: %d\n\n", get_tree_depth(root, 0));
+    //print_tree(root);
 
     ///
     ///  SAVE TREE
@@ -215,16 +205,16 @@ void test_archive()
     BitBuffer* tree_buff = create_bit_buffer();
     if (tree_buff != NULL)
     {
+      // save tree structure to bitBuffer
       serialize_tree_structure(root, tree_buff);
 
-      // create_codes();
-      printf("Alp size :%d\n", alph_size);
-      printf("Bb size :%d\nBb Bsize :%d\nBb offs :%d\nBb: ", tree_buff->count, tree_buff->count / 8, tree_buff->count % 8);
-      print_bit_buffer(tree_buff);
+      //printf("Alp size :%d\n", alph_size);
+      //printf("Bb size :%d\nBb Bsize :%d\nBb offs :%d\nBb: ", tree_buff->count, tree_buff->count / 8, tree_buff->count % 8);
+      //print_bit_buffer(tree_buff);
 
       // Save Header
       FILE* fp_out;
-      fopen_s(&fp_out, "D:\\out.x7", "wb");
+      fopen_s(&fp_out, filename_out, "wb");
 
       if (fp_out != NULL)
       {
@@ -257,6 +247,7 @@ void test_archive()
         // Write alpabet characters
         save_tree_alphabeth(root, fp_out);
 
+        // Allocate buffers for tree codes
         BitBuffer* codes[256];
 
         int alloceted_alph = 0;
@@ -293,6 +284,7 @@ void test_archive()
           {
             prepare_tree_codes(root, codes, tmp);
 
+            printf("Decoding...");
             fseek(fp_in, 0, SEEK_SET);
 
             tmp->count = 0;
@@ -310,7 +302,7 @@ void test_archive()
 
             // TODO : add Checksum here
 
-            printf("Encoded!\n");
+            printf("Encoded - %s \n", filename_out);
 
             delete_bit_buffer(&tmp);
           }
@@ -349,55 +341,41 @@ void test_archive()
 };
 
 // | HFA | version |
-// | PAGES_MAX | LAST_PAGE_OFFSET| 
+// | filesize_segment (int32 / 64) | filesize_ofsset (int32 % 64) |
+// | treesize_segment (int32 / 8) | tresize_ofsset (char8) |
 // | nodes_bits | ch | .. | ch |
-// | page | .. | page |
+// | encoded bits |
 
-// filename
-// read/verify header/ 'clean' exit
-// header - wide/short storage
-// read tree 
-// decode pages
-
-
-struct HFA_Header_t
-{
-  const char* head;// = "HFA";
-  const char* ver; // = "1.0";
-  unsigned char alph_max;
-  unsigned long pages_max;
-  unsigned char page_offset;
-};
-typedef struct HFA_Header_t HFA_Header;
-
-
-void test_decode()
+void decode_archive(char* filename_in, char* filename_out)
 {
   // Read Header
   FILE* fp_in;
-  fopen_s(&fp_in, "D:\\out.x7", "rb");
-
-#define header_l 5
+  fopen_s(&fp_in, filename_in, "rb");
 
   if (fp_in != NULL)
   {
-    char h[header_l];
+    char h[5];
 
-    h[0] = fgetc(fp_in);
-    h[1] = fgetc(fp_in);
-    h[2] = fgetc(fp_in);
-    h[3] = fgetc(fp_in);
-    h[4] = fgetc(fp_in);
-
-    printf("Header: ");
-    for (int i = 0; i < header_l; ++i)
+    if (fread_s(&h, 5, 1, 5, fp_in) != 5)
     {
-      printf("%c", h[i]);
+      printf("Error: Can't read Header\n");
+      fclose(fp_in);
+      return;
     }
-    printf("\n");
+    else if (h[0] != 'H' || h[1] != 'F' || h[2] != 'A')
+    {
+      printf("Error: Not HFA archive\n");
+      fclose(fp_in);
+      return;
+    }
+    else if (h[3] != '0' || h[4] != '1')
+    {
+      printf("Error: wrong HFA version\n");
+      fclose(fp_in);
+      return;
+    }
 
-    // expected version 0.1
-    //  h[3] == 0 && h[4] == 1
+    printf("Reading archive tree\n");
 
     unsigned int fs_segment = 0;
     unsigned int fs_offset = 0;
@@ -416,7 +394,7 @@ void test_decode()
     load_int_e(&segment, fp_in);
     offset = fgetc(fp_in);
 
-    printf("Segment: %d\n Offset: %d\n", segment, offset);
+    //printf("Segment: %d\n Offset: %d\n", segment, offset);
 
     unsigned int expected_buff_size = segment + (offset > 0 ? 1 : 0);
 
@@ -428,24 +406,24 @@ void test_decode()
 
       if (bytes_read < expected_buff_size)
       {
-        printf("Unexpected EOF");
+        printf("Error: Unexpected EOF");
       }
       if (bytes_read != expected_buff_size)
       {
-        printf("Unexpected IO error");
+        printf("Error: Unexpected IO error");
       }
       else
       {
         tree_buff->count = segment * 8 + offset;
-        printf("Bb: ");
-        print_bit_buffer(tree_buff);
-        printf("Bb count: %d\n", tree_buff->count);
+        //printf("Bb: ");
+        //print_bit_buffer(tree_buff);
+        //printf("Bb count: %d\n", tree_buff->count);
       }
-      printf("\n");
+      //printf("\n");
 
       CharFreqNode* root = make_Huffman_tree_buff(tree_buff);
 
-      printf("Tree depth: %d\n\n", get_tree_depth(root, 0));
+      //printf("Tree depth: %d\n\n", get_tree_depth(root, 0));
 
       // Read Tree alphabet
       bool err_flag = false;
@@ -470,7 +448,7 @@ void test_decode()
         if (read_buffer != NULL)
         {
           FILE* fp_out;
-          fopen_s(&fp_out, "decode.x7", "wb");
+          fopen_s(&fp_out, filename_out, "wb");
 
           if (fp_out != NULL)
           {
@@ -491,6 +469,9 @@ void test_decode()
 
             fclose(fp_out);
           }
+          {
+            printf("\nError: Can't create file - %s \n", filename_out);
+          }
 
           delete_bit_buffer(&read_buffer);
         }
@@ -503,18 +484,49 @@ void test_decode()
 
 
     fclose(fp_in);
+    printf("\nDecoded successfully - %s\n", filename_out);
   }
-  printf("Decoded successfully\n");
+  else {
+    printf("\nError: Can't open file - %s \n", filename_in);
+  }
 }
 
-
-int main(int argc, char* argv[])
+void print_help()
 {
-  test_archive();
-  test_decode();
+  printf("Compressing file with Huffman codes\n");
+  printf("Using:\n");
+  printf("   -c filename_in filename_out\n");
+  printf("     to compress file\n");
+  printf("   -d filename_in filename_out\n");
+  printf("     to decompress file\n\n");
+}
+
+int main(int argc, char** argv)
+{
+
+  if (argc < 4)
+  {
+    print_help();
+    return 0;
+  }
+
+  char* param = argv[1];
+  char* filename_in = argv[2];
+  char* filename_out = argv[3];
+
+  if (0 == strcmp("-c", param))
+  {
+    make_archive(filename_in, filename_out);
+  }
+  else if (0 == strcmp("-d", param))
+  {
+    decode_archive(filename_in, filename_out);
+  }
 
   /*
-  * buff_max - ? (perf testing / size_t?)
+  * refactor
+  *  new file_buffer > bit_buffer size 256
+  *  perf test on buff_size
   */
 
   return 0;
